@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>grid-layout - Custom Element v1</title>
+
+  <script src="utils/custom-elements.js"></script>
+
+  <script>
+  
+    document.addEventListener('WebComponentsReady', function(e){
+      
+      // customElements.whenDefined('grid-layout').then( function() {
+      // };
+
+      appendScript('dist/customelement-v1/grid-layout.js');
+
+    });
+
+
+    if(!customElementsV1Supported()){
+      //throw new Error('No custom element v0 supported');
+      polyfillCustomElementsV1();
+    }
+
+  </script>
+
+</head>
+<body>
+  
+  <grid-layout columns="repeat(3, 1fr)" gap="10px"  style="grid-template-rows:1fr 1fr 1fr; grid-auto-rows: minmax(100px, auto)">
+
+    <span id="A" style="background:yellow">A</span>
+    <span id="B" style="background:green"><b>B</b></span>
+    <span id="C" style="background:blue">C</span>
+    <span id="D" data-grid-column-start="1" style="background:red"><i>D</i></span>
+    <span id="E" style="background:yellow">E</span>
+    <span id="F" style="background:green"><b>F</b></span>
+    <span id="G" style="background:blue">G</span>
+    <span id="h" data-grid-column-start="1" style="background:red"><i>H</i></span>
+    <span id="I" style="background:yellow">I</span>
+    <span id="J" style="background:green"><b>J</b></span>
+    <span id="K" style="background:blue">K</span>
+    <span id="L" data-grid-column-start="1" style="background:red"><i>L</i></span>
+
+
+  </grid-layout>
+
+</body>
+</html>
