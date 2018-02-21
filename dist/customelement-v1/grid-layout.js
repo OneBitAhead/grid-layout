@@ -29,7 +29,8 @@ var GridLayout = (function (_super) {
         this._setObserver();
     };
     GridLayout.prototype.disconnectedCallback = function () {
-        this.childObserver.disconnect();
+        if (this.childObserver)
+            this.childObserver.disconnect();
     };
     GridLayout.prototype._detectGridSupport = function () {
         var el = document.createElement('div');

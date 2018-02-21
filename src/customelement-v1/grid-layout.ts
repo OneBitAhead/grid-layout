@@ -1,15 +1,4 @@
-// Add grid properties to style declaration
-interface CSSStyleDeclaration {
-  gridAutoColumns?: any;
-  gridAutoFlow?: any;
-  gridAutoRows?: any;
-  gridGap?: any;
-  gridColumnGap?: any;
-  gridRowGap?: any;
-  gridTemplateColumns?: any;
-  gridTemplateRows?: any;
-  grid?: any;
-}
+/// <reference path="../interfaces/iGridCssStyleDeclaration.ts" />
 
 class GridLayout extends HTMLElement {
 
@@ -42,7 +31,7 @@ class GridLayout extends HTMLElement {
 
   }
   disconnectedCallback() {
-    this.childObserver.disconnect();
+    if (this.childObserver) this.childObserver.disconnect();
   }
 
   private _detectGridSupport(): boolean {
@@ -140,6 +129,7 @@ class GridLayout extends HTMLElement {
       attributes: true,
       childList: true,
       // IE 11 does not support "Object.values(this.gridAttributes)"
+      //@ts-ignore
       attributeFilter: Object.keys(this.gridAttributes).map(key => this.gridAttributes[key]),
       subtree: true,
       attributeOldValue: false

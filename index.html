@@ -10,8 +10,9 @@
 
   <script>
   
-    document.addEventListener('CustomElementsReady', function(e){
-      console.log('CustomElementsReady', e.detail);
+    document.addEventListener('WebComponentsReady', function(e){
+      console.log('WebComponentsReady', e.detail);
+      appendScript('dist/customelement-v0/grid-layout.js');
     });
 
 
@@ -25,5 +26,14 @@
 </head>
 <body>
   
+  <grid-layout columns="repeat(3, 1fr)" gap="10px"  style="grid-template-rows:1fr 1fr 1fr; grid-auto-rows: minmax(100px, auto)">
+
+    <span id="A" style="background:yellow">A</span>
+    <span id="B" style="background:green"><b>B</b></span>
+    <span id="C" style="background:blue">C</span>
+    <span id="D" data-grid-column-start="1" style="background:red"><i>D</i></span>
+
+  </grid-layout>
+
 </body>
 </html>
