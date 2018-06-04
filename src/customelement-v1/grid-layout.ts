@@ -10,7 +10,14 @@ class GridLayout extends HTMLElement {
     gridRowStart: 'data-grid-row-start',
     gridRowEnd: 'data-grid-row-end'
   };
-  public support: boolean;
+
+  private readonly msGridAttributes = {
+    msGridColumn: 'data-grid-column-start',
+    msGridColumnSpan: 'data-grid-column-end',
+    msGridRow: 'data-grid-row-start',
+    msGridRowSpan: 'data-grid-row-end'
+  };
+  public support: string | null;
 
   constructor() {
     super();
@@ -18,7 +25,7 @@ class GridLayout extends HTMLElement {
     // Init state
     this.state = {};
 
-    // TODO: Check for implemented version msGrid
+    // Check for implemented version msGrid
     this.support = this._detectGridSupport();
   }
 
@@ -34,19 +41,36 @@ class GridLayout extends HTMLElement {
     if (this.childObserver) this.childObserver.disconnect();
   }
 
-  private _detectGridSupport(): boolean {
+  private _detectGridSupport(): string | null {
     const el = document.createElement('div');
-    return typeof el.style.grid === 'string';
-
-    // Test for legacy support (IE & early Edge)
-    // typeof el.style.msGridColumn === 'string';
+    if (typeof el.style.grid === 'string') {
+      // Test for current spec compliance
+      return 'grid';
+    }
+    else if (typeof el.style.msGridColumn) {
+      // Test for legacy support (IE & early Edge)
+      return 'msGrid';
+    }
+    else {
+      return null;
+    }
   }
 
   private _attributeValidation(name: string, value: any): any {
     switch (name) {
       case 'columns':
       case 'rows':
-        return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+        if (this.support === 'grid') {
+          return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+        }
+        else {
+          var to = parseInt(value, 10);
+          var arr = [];
+          for (var i = 1; i <= to; i++) {
+            arr.push('1fr');
+          }
+          return arr.join(' ');
+        }
       case 'auto-flow':
         return (/^((row|column) ?)?(dense)?$/.test(value)) ? value : 'row';
       default: return value;
@@ -70,6 +94,14 @@ class GridLayout extends HTMLElement {
 
   private _setStyles() {
 
+    // Check for support
+    if (this.support == null)
+      throw new Error('No CSS support');
+    if (this.support === 'msGrid') {
+      this._setLegacyStyles();
+      return;
+    }
+
     // Set style to grid
     this.style.display = (this.hasAttribute('inline')) ? 'inline-grid' : 'grid';
 
@@ -89,6 +121,18 @@ class GridLayout extends HTMLElement {
 
     if (this.state["auto-flow"]) this.style.gridAutoFlow = this.state["auto-flow"];
 
+  }
+
+  private _setLegacyStyles() {
+    this.style.display = (this.hasAttribute('inline')) ? '-ms-inline-grid' : '-ms-grid';
+    if (this.state.columns)
+      this.style.msGridColumns = this.state.columns;
+    if (this.state.rows)
+      this.style.msGridRows = this.state.rows;
+    if (this.state["align-self"])
+      this.style.msGridRowAlign = this.state["align-self"];
+    if (this.state["justify-self"])
+      this.style.msGridColumnAlign = this.state["justify-self"];
   }
 
   /**
@@ -137,6 +181,7 @@ class GridLayout extends HTMLElement {
 
     // Initial processing
     // Check what children have data-grid-* attributes
+    // TODO: Add legacy support
     const propertyNames = Object.keys(this.gridAttributes);
     Array.from(this.children).filter((child) => {
       const datasetNames = Object.keys((<HTMLElement>child).dataset);
@@ -150,6 +195,12 @@ class GridLayout extends HTMLElement {
 
   private _setChildAttributes(node: Node) {
     if (!node) return;
+
+    if (this.support === 'msGrid') {
+      this._setMsGridChildAttributes(node);
+      return;
+    }
+
     const data = (<HTMLElement>node).dataset;
 
     Object.keys(this.gridAttributes).forEach((attribute: string) => {
@@ -158,8 +209,38 @@ class GridLayout extends HTMLElement {
     });
   }
 
+  private _setMsGridChildAttributes(node: Node) {
+
+    if (!node) return;
+    var element = <HTMLElement>node;
+
+    Object.keys(this.msGridAttributes).forEach((attribute: string) => {
+
+      //@ts-ignore
+      var value = element.getAttribute(this.msGridAttributes[attribute]);
+      if (value == null) return;
+
+      if (attribute.substr(-4) === 'Span') {
+        // Calculate difference between start and span
+        var withoutSuffix = attribute.substr(0, attribute.length - 4);
+        //@ts-ignore
+        var referenceKey = this.msGridAttributes[withoutSuffix];
+
+        var start = parseInt(element.getAttribute(referenceKey) || "1", 10);
+        var end = parseInt(value, 10) || start;
+        //@ts-ignore
+        element.style[attribute] = ((end - start).toString()) || '1';
+      }
+      else {
+        //@ts-ignore
+        element.style[attribute] = value || '';
+      }
+    });
+
+  }
+
   static get observedAttributes() {
-    return ['inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'gap', 'column-gap', 'row-gap', 'auto-flow'];
+    return ['gap', 'column-gap', 'row-gap', 'inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'auto-flow', 'align-self', 'justify-self'];
   }
 
   attributeChangedCallback(attrName: string, oldVal: string, newVal: string) {

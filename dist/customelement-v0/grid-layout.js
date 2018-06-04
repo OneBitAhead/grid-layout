@@ -3,7 +3,7 @@
     'use strict';
     var GridLayoutProto = Object.create(HTMLElement.prototype);
     Object.defineProperty(GridLayoutProto, 'observedAttributes', {
-        value: ['inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'gap', 'column-gap', 'row-gap', 'auto-flow']
+        value: ['gap', 'column-gap', 'row-gap', 'inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'auto-flow', 'align-self', 'justify-self']
     });
     Object.defineProperty(GridLayoutProto, 'gridAttributes', {
         value: {
@@ -13,9 +13,25 @@
             gridRowEnd: 'data-grid-row-end'
         }
     });
+    Object.defineProperty(GridLayoutProto, 'msGridAttributes', {
+        value: {
+            msGridColumn: 'data-grid-column-start',
+            msGridColumnSpan: 'data-grid-column-end',
+            msGridRow: 'data-grid-row-start',
+            msGridRowSpan: 'data-grid-row-end'
+        }
+    });
     GridLayoutProto._detectGridSupport = function () {
         var el = document.createElement('div');
-        return typeof el.style.grid === 'string';
+        if (typeof el.style.grid === 'string') {
+            return 'grid';
+        }
+        else if (typeof el.style.msGridColumn) {
+            return 'msGrid';
+        }
+        else {
+            return null;
+        }
     };
     GridLayoutProto._getState = function (attribute, value) {
         var _this = this;
@@ -31,13 +47,29 @@
         switch (name) {
             case 'columns':
             case 'rows':
-                return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+                if (this.support === 'grid') {
+                    return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+                }
+                else {
+                    var to = parseInt(value, 10);
+                    var arr = [];
+                    for (var i = 1; i <= to; i++) {
+                        arr.push('1fr');
+                    }
+                    return arr.join(' ');
+                }
             case 'auto-flow':
                 return (/^((row|column) ?)?(dense)?$/.test(value)) ? value : 'row';
             default: return value;
         }
     };
     GridLayoutProto._setStyles = function () {
+        if (this.support == null)
+            throw new Error('No CSS support');
+        if (this.support === 'msGrid') {
+            this._setLegacyStyles();
+            return;
+        }
         this.style.display = (this.hasAttribute('inline')) ? 'inline-grid' : 'grid';
         if (this.state.columns)
             this.style.gridTemplateColumns = this.state.columns;
@@ -58,6 +90,17 @@
         }
         if (this.state["auto-flow"])
             this.style.gridAutoFlow = this.state["auto-flow"];
+    };
+    GridLayoutProto._setLegacyStyles = function () {
+        this.style.display = (this.hasAttribute('inline')) ? '-ms-inline-grid' : '-ms-grid';
+        if (this.state.columns)
+            this.style.msGridColumns = this.state.columns;
+        if (this.state.rows)
+            this.style.msGridRows = this.state.rows;
+        if (this.state["align-self"])
+            this.style.msGridRowAlign = this.state["align-self"];
+        if (this.state["justify-self"])
+            this.style.msGridColumnAlign = this.state["justify-self"];
     };
     GridLayoutProto._setObserver = function () {
         var _this = this;
@@ -89,9 +132,34 @@
     GridLayoutProto._setChildAttributes = function (node) {
         if (!node)
             return;
+        if (this.support === 'msGrid') {
+            this._setMsGridChildAttributes(node);
+            return;
+        }
         var data = node.dataset;
         Object.keys(this.gridAttributes).forEach(function (attribute) {
             node.style[attribute] = data[attribute] || '';
+        });
+    };
+    GridLayoutProto._setMsGridChildAttributes = function (node) {
+        var _this = this;
+        if (!node)
+            return;
+        var element = node;
+        Object.keys(this.msGridAttributes).forEach(function (attribute) {
+            var value = element.getAttribute(_this.msGridAttributes[attribute]);
+            if (value == null)
+                return;
+            if (attribute.substr(-4) === 'Span') {
+                var withoutSuffix = attribute.substr(0, attribute.length - 4);
+                var referenceKey = _this.msGridAttributes[withoutSuffix];
+                var start = parseInt(element.getAttribute(referenceKey) || "1", 10);
+                var end = parseInt(value, 10) || start;
+                element.style[attribute] = ((end - start).toString()) || '1';
+            }
+            else {
+                element.style[attribute] = value || '';
+            }
         });
     };
     GridLayoutProto.createdCallback = function () {

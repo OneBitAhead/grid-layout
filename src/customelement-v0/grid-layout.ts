@@ -1,5 +1,7 @@
 /// <reference path="../interfaces/iGridCssStyleDeclaration.ts" />
 
+// TODO: Calculate position when gap is defined in legacy mode
+
 interface Document {
   registerElement: (name: string, options: any) => any;
 }
@@ -12,7 +14,7 @@ interface Document {
   // observedAttributes are read-only
   Object.defineProperty(GridLayoutProto, 'observedAttributes', {
     value:
-      ['inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'gap', 'column-gap', 'row-gap', 'auto-flow']
+      ['gap', 'column-gap', 'row-gap', 'inline', 'columns', 'rows', 'auto-rows', 'auto-columns', 'auto-flow', 'align-self', 'justify-self']
   })
 
   // gridAttributes are read-only
@@ -25,12 +27,29 @@ interface Document {
     }
   });
 
-  GridLayoutProto._detectGridSupport = function (): boolean {
-    const el = document.createElement('div');
-    return typeof el.style.grid === 'string';
+  // msGridAttributes are read-only
+  Object.defineProperty(GridLayoutProto, 'msGridAttributes', {
+    value: {
+      msGridColumn: 'data-grid-column-start',
+      msGridColumnSpan: 'data-grid-column-end',
+      msGridRow: 'data-grid-row-start',
+      msGridRowSpan: 'data-grid-row-end'
+    }
+  });
 
-    // Test for legacy support (IE & early Edge)
-    // typeof el.style.msGridColumn === 'string';
+  GridLayoutProto._detectGridSupport = function (): string | null {
+    const el = document.createElement('div');
+    if (typeof el.style.grid === 'string') {
+      // Test for current spec compliance
+      return 'grid';
+    }
+    else if (typeof el.style.msGridColumn) {
+      // Test for legacy support (IE & early Edge)
+      return 'msGrid';
+    }
+    else {
+      return null;
+    }
   };
 
   GridLayoutProto._getState = function (attribute?: string, value?: string): void {
@@ -51,7 +70,17 @@ interface Document {
     switch (name) {
       case 'columns':
       case 'rows':
-        return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+        if (this.support === 'grid') {
+          return (/^\d+$/g.test(value)) ? 'repeat(' + value + ', 1fr)' : value;
+        }
+        else {
+          var to = parseInt(value, 10);
+          var arr = [];
+          for (var i = 1; i <= to; i++) {
+            arr.push('1fr');
+          }
+          return arr.join(' ');
+        }
       case 'auto-flow':
         return (/^((row|column) ?)?(dense)?$/.test(value)) ? value : 'row';
       default: return value;
@@ -59,6 +88,15 @@ interface Document {
   }
 
   GridLayoutProto._setStyles = function () {
+
+    // Check for support
+    if (this.support == null)
+      throw new Error('No CSS support');
+    if (this.support === 'msGrid') {
+      this._setLegacyStyles();
+      return;
+    }
+
     // Set style to grid
     this.style.display = (this.hasAttribute('inline')) ? 'inline-grid' : 'grid';
 
@@ -78,6 +116,18 @@ interface Document {
 
     if (this.state["auto-flow"]) this.style.gridAutoFlow = this.state["auto-flow"];
   }
+
+  GridLayoutProto._setLegacyStyles = function () {
+    this.style.display = (this.hasAttribute('inline')) ? '-ms-inline-grid' : '-ms-grid';
+    if (this.state.columns)
+      this.style.msGridColumns = this.state.columns;
+    if (this.state.rows)
+      this.style.msGridRows = this.state.rows;
+    if (this.state["align-self"])
+      this.style.msGridRowAlign = this.state["align-self"];
+    if (this.state["justify-self"])
+      this.style.msGridColumnAlign = this.state["justify-self"];
+  };
 
   GridLayoutProto._setObserver = function () {
 
@@ -130,6 +180,12 @@ interface Document {
 
   GridLayoutProto._setChildAttributes = function (node: Node) {
     if (!node) return;
+
+    if (this.support === 'msGrid') {
+      this._setMsGridChildAttributes(node);
+      return;
+    }
+
     const data = (<HTMLElement>node).dataset;
 
     Object.keys(this.gridAttributes).forEach((attribute: string) => {
@@ -137,6 +193,33 @@ interface Document {
       (<HTMLElement>node).style[attribute] = data[attribute] || '';
     });
   }
+
+  GridLayoutProto._setMsGridChildAttributes = function (node: Node) {
+
+    if (!node) return;
+    var element = <HTMLElement>node;
+
+    Object.keys(this.msGridAttributes).forEach((attribute: string) => {
+
+      var value = element.getAttribute(this.msGridAttributes[attribute]);
+      if (value == null) return;
+
+      if (attribute.substr(-4) === 'Span') {
+        // Calculate difference between start and span
+        var withoutSuffix = attribute.substr(0, attribute.length - 4);
+        var referenceKey = this.msGridAttributes[withoutSuffix];
+
+        var start = parseInt(element.getAttribute(referenceKey) || "1", 10);
+        var end = parseInt(value, 10) || start;
+        //@ts-ignore
+        element.style[attribute] = ((end - start).toString()) || '1';
+      }
+      else {
+        //@ts-ignore
+        element.style[attribute] = value || '';
+      }
+    });
+  };
 
   /** ---------- Lifecycle Callbacks ---------- */
 
